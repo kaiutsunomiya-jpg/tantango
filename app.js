@@ -9,7 +9,7 @@ const DB_VERSION = 2; // 変更しない：旧アプリのIndexedDBをそのま�
 
 const app = document.getElementById('app');
 const state = {
-  view: 'menu', sets: [], selectedCategory: null, selectedSetId: null, selectedEntryKey: null,
+  view: 'menu', sets: [], selectedCategory: null, selectedLanguage: null, selectedSetId: null, selectedEntryKey: null,
   shuffled: false, reviewOnly: false, order: [],
   testEntries: [], testIndex: 0, testRevealed: false, testFinished: false,
   starred: new Set(), startupError: ''
@@ -95,26 +95,34 @@ function parseCSV(contents) {
   if (quoted) throw new Error('CSVの引用符が閉じていません。');
   if (field || row.length) { row.push(field); rows.push(row); }
   const nonempty = rows.filter(fields => fields.some(value => value.trim()));
-  const header = nonempty[0]?.map(value => value.trim()) || [];
-  const isComposition = header.length === 2 && header[0] === '日本語例文' && header[1] === '訳文';
-  const isVocabulary = (header.length === 5 || header.length === 4) &&
-    ['単語', '日本語訳', '例文', '例文の日本語訳'].every((name, i) => header[i] === name) &&
-    (header.length === 4 || header[4] === '強調箇所');
-  if (!isComposition && !isVocabulary) throw new Error('CSVのヘッダーは「日本語例文,訳文」または「単語,日本語訳,例文,例文の日本語訳,強調箇所」にしてください。');
+  // 第一行はヘッダー。カラム名は一切判定せず、データの実際の列数を優先する。
+  // (例: 「日本語例文,韓国語例文」でも通常の2列Flashとして読む)
+  const records = nonempty.slice(1);
+  if (!records.length) throw new Error('CSVにデータがありません。');
+  const distribution = new Map();
+  for (const cells of records) distribution.set(cells.length, (distribution.get(cells.length) || 0) + 1);
+  const columns = [...distribution.entries()].sort((a,b) => b[1] - a[1] || b[0] - a[0])[0][0];
+  if (![2,3,4,5].includes(columns)) throw new Error(`${columns}列は非対応です（2/3/4/5列）。`);
   const occur = new Map();
-  const entries = nonempty.slice(1).map((cells, index) => {
-    if (cells.length !== header.length && !(isVocabulary && header.length === 5 && cells.length === 4)) {
-      throw new Error(`${index + 2}行目の列数が違います（${header.length}列）。`);
+  const entries = records.map((cells, index) => {
+    if (cells.length !== columns && !(columns === 5 && cells.length === 4)) {
+      throw new Error(`${index + 2}行目の列数が違います（${columns}列）。`);
     }
-    const [word, translation, example = '', exampleJa = '', highlight = ''] = cells.map(value => value.trim());
-    if (!word) throw new Error(`${index + 2}行目が空です。`);
+    const values = cells.map(value => value.trim());
+    if (!values[0]) throw new Error(`${index + 2}行目が空です。`);
+    const [word, second, third = '', fourth = '', fifth = ''] = values;
+    // 3列: 原語/拼音/日本語。2列: 表/裏。4/5列: 単語/意味/例文/訳/(強調)
+    const translation = columns === 3 ? third : second;
+    const pinyin = columns === 3 ? second : '';
+    const example = columns >= 4 ? third : '';
+    const exampleJa = columns >= 4 ? fourth : '';
+    const highlight = columns === 5 ? fifth : '';
     const identity = JSON.stringify([word, translation]);
     const occurrence = occur.get(identity) || 0;
     occur.set(identity, occurrence + 1);
-    return { key: JSON.stringify([word, translation, occurrence]), word, translation, example, exampleJa, highlight };
+    return { key: JSON.stringify([word, translation, occurrence]), word, translation, pinyin, example, exampleJa, highlight };
   });
-  if (!entries.length) throw new Error('CSVにデータがありません。');
-  return {mode: isComposition ? 'composition' : 'vocabulary', entries};
+  return {mode: columns === 3 ? 'chinese' : columns === 2 ? 'composition' : 'vocabulary', columns, entries};
 }
 
 // 旧PWA版のローカルCSVにも対応：index IDしかないデータを、単語ベースのキーに変換する。
@@ -126,7 +134,7 @@ function normalizeEntries(entries) {
     const identity = JSON.stringify([word,translation]);
     const n = occurrence.get(identity) || 0;
     occurrence.set(identity,n+1);
-    return {key: JSON.stringify([word,translation,n]),word,translation,example: String(item.example ?? ''),exampleJa: String(item.exampleJa ?? item.exampleTranslation ?? ''),highlight: String(item.highlight ?? item.emphasis ?? '')};
+    return {key: JSON.stringify([word,translation,n]),word,translation,pinyin:String(item.pinyin ?? ''),example: String(item.example ?? ''),exampleJa: String(item.exampleJa ?? item.exampleTranslation ?? ''),highlight: String(item.highlight ?? item.emphasis ?? '')};
   });
 }
 function openDB() {
@@ -176,7 +184,7 @@ function back(action,caption='戻る') { return `<button type="button" class="bu
 function card(set) {
   return `<button type="button" class="deck" data-action="open-set" data-id="${esc(set.id)}">
   <span class="deck-icon">${svg.book}</span>
-  <span class="deck-content"><span class="deck-title">${esc(set.title)}</span><span class="deck-count" style="display:block">${set.entries.length}${set.mode==='composition'?'文':'語'} ・ ${set.mode==='composition'?'瞬間作文':'単語学習'}</span></span>
+  <span class="deck-content"><span class="deck-title">${esc(set.title)}</span><span class="deck-count" style="display:block">${set.entries.length}${set.mode==='composition'?'文':'語'}</span></span>
   <span class="deck-next">${svg.next}</span></button>`;
 }
 // ホームではCSV一覧ではなく、学習モードを最初に選択する。
@@ -197,21 +205,43 @@ function renderMenu() {
         return `<button type="button" class="deck category-deck" data-action="open-category" data-category="${key}">
           <span class="deck-icon">${category.icon}</span>
           <span class="deck-content"><span class="deck-title">${category.title}</span>
-            <span class="deck-count" style="display:block">${decks.length}セット ・ ${total}${category.unit}</span></span>
+            <span class="deck-count" style="display:block">${decks.length}セット</span></span>
           <span class="deck-next">${svg.next}</span></button>`;
       }).join('')}
     </div>
     ${state.startupError ? `<p class="load-error">${esc(state.startupError)}</p>` : ''}
   </div></main>`;
 }
+const LANGUAGES = {
+  en: {title:'英語', icon:'EN'},
+  ko: {title:'韓国語', icon:'한'},
+  zh: {title:'中国語', icon:'中'}
+};
+function languageCard(key, language) {
+  const sets = state.sets.filter(set => set.folder === state.selectedCategory && set.language === key);
+  return `<button type="button" class="deck language-deck" data-action="open-language" data-language="${key}">
+    <span class="language-icon">${language.icon}</span>
+    <span class="deck-content"><span class="deck-title">${language.title}</span><span class="deck-count" style="display:block">${sets.length}セット</span></span>
+    <span class="deck-next">${svg.next}</span></button>`;
+}
 function renderCategory() {
   const category=CATEGORIES[state.selectedCategory];
   if (!category) { state.view='menu'; renderMenu(); return; }
-  const decks=state.sets.filter(set => set.folder === state.selectedCategory);
   app.innerHTML = bar(back('go-home','ホーム'),`<span class="bar-title">${category.title}</span>`,'') +
     `<main class="menu category-page scrollable"><div class="menu-content">
-       <h1 class="category-heading">${category.title}</h1>
-       <div class="deck-list">${decks.map(card).join('') || '<div class="empty">単語セットがありません</div>'}</div>
+       <h1 class="category-heading">言語を選択</h1>
+       <div class="deck-list">${Object.entries(LANGUAGES).map(([key,language]) => languageCard(key,language)).join('')}</div>
+    </div></main>`;
+}
+function renderLanguageSets() {
+  const category=CATEGORIES[state.selectedCategory];
+  const language=LANGUAGES[state.selectedLanguage];
+  if (!category || !language) { state.view='category'; renderCategory(); return; }
+  const decks=state.sets.filter(set => set.folder === state.selectedCategory && set.language === state.selectedLanguage);
+  app.innerHTML = bar(back('go-category','言語'),`<span class="bar-title">${language.title}</span>`,'') +
+    `<main class="menu category-page scrollable"><div class="menu-content">
+       <h1 class="category-heading">${category.title} ・ ${language.title}</h1>
+       <div class="deck-list">${decks.map(card).join('') || '<div class="empty">セットがありません</div>'}</div>
     </div></main>`;
 }
 function starButton(entry,extraClass='') {
@@ -222,17 +252,18 @@ function renderList(scrollTop = 0) {
   const set = currentSet();
   if (!set) { state.view = 'category'; renderCategory(); return; }
   const composition = set.mode === 'composition';
+  const chinese = set.mode === 'chinese';
   const entries = orderedEntries();
   const reviewButton = `<button type="button" class="button-icon${state.reviewOnly?' active-review':''}" data-action="toggle-review" aria-pressed="${state.reviewOnly}" aria-label="${state.reviewOnly?'全項目を表示':'要復習のみ表示'}" title="要復習">${svg.star}</button>`;
   const shuffleButton = `<button type="button" class="button-icon${state.shuffled?' active-shuffle':''}" data-action="toggle-shuffle" aria-pressed="${state.shuffled}" aria-label="${state.shuffled?'CSV順に戻す':'ランダム順にする'}" title="並び替え">${svg.shuffle}</button>`;
-  app.innerHTML = bar(back('go-category','セット'), `<button type="button" class="button-test" data-action="start-test" ${entries.length ? '' : 'disabled'}>${svg.bolt}テスト</button>`, reviewButton+shuffleButton)+
+  app.innerHTML = bar(back('go-menu','セット'), `<button type="button" class="button-test" data-action="start-test" ${entries.length ? '' : 'disabled'}>${svg.bolt}テスト</button>`, reviewButton+shuffleButton)+
     `<section class="study-head"><h1 class="study-name">${esc(set.title)}</h1><div class="study-sub"><b>${entries.length}${composition ? '文' : '語'}</b>${state.reviewOnly ? ' ・ ⭐復習' : ' ・ '+(state.shuffled ? 'ランダム順' : 'CSV順')}</div></section>
-    <div class="column-head${composition?' composition-columns':''}"><span></span><span>${composition?'日本語例文':'単語'}</span><span>${composition?'訳文':'日本語訳'}</span></div>
+    <div class="column-head${composition?' composition-columns':''}"><span></span><span>${composition?'日本語例文':chinese?'原語':'単語'}</span><span>${composition?'訳文':'日本語訳'}</span></div>
     <main class="words-scroll scrollable" id="wordsViewport"><div class="word-list${composition?' composition-list':''}">
     ${entries.length ? entries.map(entry => `<div class="word-row${composition?' composition-row':''}${state.selectedEntryKey===entry.key?' selected':''}">
       ${starButton(entry)}
       <button type="button" class="word-select" data-action="show-example" data-entrykey="${esc(entry.key)}" aria-pressed="${state.selectedEntryKey===entry.key}">
-        <span class="word-text">${composition?formatProtected(entry.word,'','ja'):esc(entry.word)}</span><span class="word-translation">${composition?formatProtected(entry.translation,'','auto'):esc(entry.translation)}</span></button></div>`).join(''):
+        <span class="word-text">${chinese?`<span class="hanzi">${esc(entry.word)}</span><span class="pinyin">${esc(entry.pinyin)}</span>`:composition?formatProtected(entry.word,'','ja'):esc(entry.word)}</span><span class="word-translation">${composition?formatProtected(entry.translation,'','auto'):esc(entry.translation)}</span></button></div>`).join(''):
       '<div class="empty">⭐を付けた項目がありません</div>'}
     </div></main>`;
   renderPanel();
@@ -248,10 +279,11 @@ function renderPanel() {
   if (!entry || (state.reviewOnly && !isStarred(entry))) { viewport.classList.remove('panel-open'); return; }
   viewport.classList.add('panel-open');
   const composition = set.mode === 'composition';
+  const chinese = set.mode === 'chinese';
   app.insertAdjacentHTML('beforeend', `<aside class="example-panel${composition?' composition-panel':''}" id="examplePanel" aria-label="${composition?'瞬間作文の訳文':'単語と例文'}">
-    <div class="panel-upper"><div class="panel-head"><div class="panel-term">${composition?formatProtected(entry.word,'','ja'):esc(entry.word)}</div><button type="button" class="close-panel" data-action="close-panel" aria-label="閉じる">×</button></div>
+    <div class="panel-upper"><div class="panel-head"><div class="panel-term">${composition?formatProtected(entry.word,'','ja'):esc(entry.word)}${chinese?`<div class="panel-pinyin">${esc(entry.pinyin)}</div>`:''}</div><button type="button" class="close-panel" data-action="close-panel" aria-label="閉じる">×</button></div>
       ${composition?'':`<div class="panel-meaning">${esc(entry.translation)}</div>`}</div>
-    <div class="panel-lower">${composition ? `<p class="composition-answer">${formatProtected(entry.translation)}</p>` : `<p class="example-source">${formatExample(entry.example,entry.highlight)}</p><p class="example-translation">${formatProtected(entry.exampleJa,'','ja')}</p>`}</div>
+    ${chinese?'':`<div class="panel-lower">${composition ? `<p class="composition-answer">${formatProtected(entry.translation)}</p>` : `<p class="example-source">${formatExample(entry.example,entry.highlight)}</p><p class="example-translation">${formatProtected(entry.exampleJa,'','ja')}</p>`}</div>`}
   </aside>`);
 }
 function showEntry(entryKey) {
@@ -288,6 +320,7 @@ function renderTest() {
   const entries = state.testEntries;
   if (!entries.length) { state.view='list'; renderList(); return; }
   const composition = currentSet()?.mode === 'composition';
+  const chinese = currentSet()?.mode === 'chinese';
   const completed = state.testFinished;
   const count = Math.min(state.testIndex+1,entries.length);
   app.innerHTML=bar(back('return-list'),'<span class="bar-title">テスト</span>',`<span class="test-counter">${count}/${entries.length}</span>`)+
@@ -299,12 +332,13 @@ function renderTest() {
   }
   const entry = testEntry();
   const revealed = state.testRevealed;
-  app.insertAdjacentHTML('beforeend',`<main class="test-stage${composition?' composition-test':''}">
+  app.insertAdjacentHTML('beforeend',`<main class="test-stage${composition?' composition-test':chinese?' chinese-test':' vocabulary-test'}">
     <button type="button" class="test-tap${revealed?' is-answer':''}" data-action="advance-test" aria-label="${revealed?'次の問題へ':'解答を見る'}">
       <div class="test-top"><div class="test-word">${composition?formatProtected(entry.word,'','ja'):esc(entry.word)}</div>
+        ${revealed&&chinese?`<div class="test-pinyin">${esc(entry.pinyin)}</div>`:''}
         ${revealed&&!composition?`<div class="test-meaning">${esc(entry.translation)}</div>`:''}
       </div>
-      <div class="test-bottom">${revealed ? (composition ? `<div class="test-bottom-inner"><p class="composition-test-answer">${formatProtected(entry.translation)}</p></div>`:
+      <div class="test-bottom">${revealed ? (composition ? `<div class="test-bottom-inner"><p class="composition-test-answer">${formatProtected(entry.translation)}</p></div>`:chinese?'':
         `<div class="test-bottom-inner"><p class="test-example">${formatExample(entry.example,entry.highlight)}</p><p class="test-ja">${formatProtected(entry.exampleJa,'','ja')}</p></div>`) : ''}</div>
     </button>
     <div class="tap-indicator" aria-hidden="true">${svg.hand}</div>
@@ -315,6 +349,7 @@ function renderTest() {
 function render(scrollTop=0) {
   if (state.view==='menu') renderMenu();
   if (state.view==='category') renderCategory();
+  if (state.view==='language') renderLanguageSets();
   if (state.view==='list') renderList(scrollTop);
   if (state.view==='test') renderTest();
 }
@@ -357,21 +392,28 @@ app.addEventListener('click',async event=>{
     case 'open-category': {
       if (!CATEGORIES[button.dataset.category]) return;
       state.selectedCategory=button.dataset.category;
+      state.selectedLanguage=null;
       state.view='category';renderCategory();return;
     }
-    case 'go-home': state.view='menu';state.selectedCategory=null;renderMenu();return;
-    case 'go-category': state.view='category';state.selectedEntryKey=null;renderCategory();return;
+    case 'go-home': state.view='menu';state.selectedCategory=null;state.selectedLanguage=null;renderMenu();return;
+    case 'go-category': state.view='category';state.selectedEntryKey=null;state.selectedLanguage=null;renderCategory();return;
+    case 'open-language': {
+      if (!LANGUAGES[button.dataset.language]) return;
+      state.selectedLanguage=button.dataset.language;
+      state.view='language';renderLanguageSets();return;
+    }
     case 'open-set': {
       const set=state.sets.find(x=>x.id===button.dataset.id);
       if (!set) return;
       state.selectedCategory=set.folder;
+      state.selectedLanguage=set.language;
       state.selectedSetId=set.id;
       state.order=set.entries.map((_,i)=>i);
       state.selectedEntryKey=null;
       state.shuffled=false; state.reviewOnly=false;
       state.view='list'; render(); return;
     }
-    case 'go-menu': state.view='category';state.selectedEntryKey=null;render();return;
+    case 'go-menu': state.view='language';state.selectedEntryKey=null;render();return;
     case 'show-example': showEntry(button.dataset.entrykey);return;
     case 'close-panel': showEntry(null);return;
     case 'toggle-shuffle': {
@@ -427,10 +469,10 @@ async function boot() {
         const response=await fetch(`./VocabularySets/${encodedPath}`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const parsed=parseCSV(await response.text());
-        const expected=folder==='Flash' ? 'composition' : 'vocabulary';
-        if (parsed.mode!==expected) throw new Error(`CSVの形式が${folder}フォルダに合っていません。`);
+        // カラム名のゆれや4列の旧単語CSVにも対応し、CSVの実データ列数で判定。
+        const language = ['en','ko','zh'].includes(item.language) ? item.language : (parsed.mode==='chinese' ? 'zh' : 'en');
         bundled.push({id:`bundled:${path}`,legacyId:`bundled:${fileName}`,folder,
-          kind:'bundled',fileName,path,title:basename(fileName),mode:parsed.mode,entries:parsed.entries});
+          kind:'bundled',fileName,path,title:basename(fileName),language,mode:parsed.mode,columns:parsed.columns,entries:parsed.entries});
       } catch(error) {state.startupError+=`${fileName}：${error.message} `;}
     }
   } catch(error) {state.startupError=`CSVの一覧を読み込めません：${error.message}。GitHub Actionsの公開設定を確認してください。`;}
@@ -440,10 +482,17 @@ async function boot() {
     // v8以前のキーは bundled:ファイル名。フォルダ移行後も⭐を継承・永続化する。
     const migrations=[];
     for (const set of bundled) {
+      const priorIds = [set.legacyId];
+      // 同一内容のTOPIK100語CSVの旧ファイル名（v9まで）からも⭐を移行する。
+      if (set.path === 'Vocabulary/第47回TOPIKⅡ_上級韓国語100単語.csv') {
+        priorIds.push('bundled:Vocabulary/第47回TOPIKⅡ_上級韓国語100単語(1).csv');
+        priorIds.push('bundled:第47回TOPIKⅡ_上級韓国語100単語(1).csv');
+      }
       for (const entry of set.entries) {
-        const oldId=reviewId(set.legacyId,entry.key);
         const newId=reviewId(set.id,entry.key);
-        if (state.starred.has(oldId) && !state.starred.has(newId)) {
+        if (state.starred.has(newId)) continue;
+        const oldId=priorIds.map(id=>reviewId(id,entry.key)).find(id=>state.starred.has(id));
+        if (oldId) {
           state.starred.add(newId);
           migrations.push({id:newId,oldId,setId:set.id,entryKey:entry.key});
         }

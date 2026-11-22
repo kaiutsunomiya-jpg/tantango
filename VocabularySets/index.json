@@ -1,19 +1,248 @@
 {
-  "version": 2,
+  "version": 3,
   "files": [
     {
-      "name": "第47回TOPIKⅡ_上級韓国語100単語(1).csv",
-      "path": "Vocabulary/第47回TOPIKⅡ_上級韓国語100単語(1).csv",
+      "name": "Only god forgives 1.정산.csv",
+      "path": "Vocabulary/Only god forgives 1.정산.csv",
       "folder": "Vocabulary",
       "mode": "vocabulary",
+      "columns": 4,
+      "language": "ko",
+      "count": 50
+    },
+    {
+      "name": "Only god forgives 2.에덴.csv",
+      "path": "Vocabulary/Only god forgives 2.에덴.csv",
+      "folder": "Vocabulary",
+      "mode": "vocabulary",
+      "columns": 4,
+      "language": "ko",
+      "count": 51
+    },
+    {
+      "name": "第47回TOPIKⅡ_上級韓国語100単語.csv",
+      "path": "Vocabulary/第47回TOPIKⅡ_上級韓国語100単語.csv",
+      "folder": "Vocabulary",
+      "mode": "vocabulary",
+      "columns": 5,
+      "language": "ko",
       "count": 100
+    },
+    {
+      "name": "韓国語例文_01-07ページ_5カラム_校正版.csv",
+      "path": "Vocabulary/韓国語例文_01-07ページ_5カラム_校正版.csv",
+      "folder": "Vocabulary",
+      "mode": "vocabulary",
+      "columns": 5,
+      "language": "ko",
+      "count": 105
+    },
+    {
+      "name": "韓国語例文_08-14ページ_5カラム_校正版.csv",
+      "path": "Vocabulary/韓国語例文_08-14ページ_5カラム_校正版.csv",
+      "folder": "Vocabulary",
+      "mode": "vocabulary",
+      "columns": 5,
+      "language": "ko",
+      "count": 105
+    },
+    {
+      "name": "韓国語例文_15-21ページ_5カラム_校正版.csv",
+      "path": "Vocabulary/韓国語例文_15-21ページ_5カラム_校正版.csv",
+      "folder": "Vocabulary",
+      "mode": "vocabulary",
+      "columns": 5,
+      "language": "ko",
+      "count": 105
+    },
+    {
+      "name": "韓国語例文_22-28ページ_5カラム_校正版.csv",
+      "path": "Vocabulary/韓国語例文_22-28ページ_5カラム_校正版.csv",
+      "folder": "Vocabulary",
+      "mode": "vocabulary",
+      "columns": 5,
+      "language": "ko",
+      "count": 105
+    },
+    {
+      "name": "韓国語例文_29-35ページ_5カラム_校正版.csv",
+      "path": "Vocabulary/韓国語例文_29-35ページ_5カラム_校正版.csv",
+      "folder": "Vocabulary",
+      "mode": "vocabulary",
+      "columns": 5,
+      "language": "ko",
+      "count": 105
+    },
+    {
+      "name": "1級2026年第1回.csv",
+      "path": "Flash/1級2026年第1回.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "en",
+      "count": 80
+    },
+    {
+      "name": "1級2026年第2回.csv",
+      "path": "Flash/1級2026年第2回.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "en",
+      "count": 59
+    },
+    {
+      "name": "HSK3級_001-050.csv",
+      "path": "Flash/HSK3級_001-050.csv",
+      "folder": "Flash",
+      "mode": "chinese",
+      "columns": 3,
+      "language": "zh",
+      "count": 50
+    },
+    {
+      "name": "HSK3級_051-100.csv",
+      "path": "Flash/HSK3級_051-100.csv",
+      "folder": "Flash",
+      "mode": "chinese",
+      "columns": 3,
+      "language": "zh",
+      "count": 50
+    },
+    {
+      "name": "HSK3級_101-150.csv",
+      "path": "Flash/HSK3級_101-150.csv",
+      "folder": "Flash",
+      "mode": "chinese",
+      "columns": 3,
+      "language": "zh",
+      "count": 50
+    },
+    {
+      "name": "HSK3級_151-200.csv",
+      "path": "Flash/HSK3級_151-200.csv",
+      "folder": "Flash",
+      "mode": "chinese",
+      "columns": 3,
+      "language": "zh",
+      "count": 50
+    },
+    {
+      "name": "HSK3級_201-250.csv",
+      "path": "Flash/HSK3級_201-250.csv",
+      "folder": "Flash",
+      "mode": "chinese",
+      "columns": 3,
+      "language": "zh",
+      "count": 50
+    },
+    {
+      "name": "HSK3級_251-300.csv",
+      "path": "Flash/HSK3級_251-300.csv",
+      "folder": "Flash",
+      "mode": "chinese",
+      "columns": 3,
+      "language": "zh",
+      "count": 50
+    },
+    {
+      "name": "HSK3級_301-333.csv",
+      "path": "Flash/HSK3級_301-333.csv",
+      "folder": "Flash",
+      "mode": "chinese",
+      "columns": 3,
+      "language": "zh",
+      "count": 33
+    },
+    {
+      "name": "旅行英会話フレーズ_日本語と訳文.csv",
+      "path": "Flash/旅行英会話フレーズ_日本語と訳文.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "en",
+      "count": 94
+    },
+    {
+      "name": "瞬間英作文 英語構文55 〜例文で覚える【268】.csv",
+      "path": "Flash/瞬間英作文 英語構文55 〜例文で覚える【268】.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "en",
+      "count": 110
     },
     {
       "name": "瞬間英作文100_セット1.csv",
       "path": "Flash/瞬間英作文100_セット1.csv",
       "folder": "Flash",
       "mode": "composition",
+      "columns": 2,
+      "language": "en",
       "count": 100
+    },
+    {
+      "name": "瞬間英作文100_セット2.csv",
+      "path": "Flash/瞬間英作文100_セット2.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "en",
+      "count": 100
+    },
+    {
+      "name": "瞬間英作文100_セット3.csv",
+      "path": "Flash/瞬間英作文100_セット3.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "en",
+      "count": 100
+    },
+    {
+      "name": "韓国語例文_01-07ページ_2カラム_校正版.csv",
+      "path": "Flash/韓国語例文_01-07ページ_2カラム_校正版.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "ko",
+      "count": 105
+    },
+    {
+      "name": "韓国語例文_08-14ページ_2カラム_校正版.csv",
+      "path": "Flash/韓国語例文_08-14ページ_2カラム_校正版.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "ko",
+      "count": 105
+    },
+    {
+      "name": "韓国語例文_15-21ページ_2カラム_校正版.csv",
+      "path": "Flash/韓国語例文_15-21ページ_2カラム_校正版.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "ko",
+      "count": 105
+    },
+    {
+      "name": "韓国語例文_22-28ページ_2カラム_校正版.csv",
+      "path": "Flash/韓国語例文_22-28ページ_2カラム_校正版.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "ko",
+      "count": 105
+    },
+    {
+      "name": "韓国語例文_29-35ページ_2カラム_校正版.csv",
+      "path": "Flash/韓国語例文_29-35ページ_2カラム_校正版.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "ko",
+      "count": 105
     }
   ]
 }
