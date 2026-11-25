@@ -279,3 +279,74 @@ button:focus-visible { outline: 3px solid #67a8a2; outline-offset: 2px; }
 .chinese-test .test-meaning { grid-row: 3; font-size: clamp(18px, 5vw, 24px); }
 .chinese-test .test-bottom { border-top: 0; }
 .chinese-test .test-tap.is-answer .test-bottom { background: transparent; border-top-color: transparent; }
+
+/* v11: 全画面の左下に控えめなバージョン情報。学習操作と重ならずタップを妨げない。 */
+.app::after {
+  content: attr(data-version);
+  position: absolute;
+  z-index: 6;
+  bottom: calc(env(safe-area-inset-bottom) + 3px);
+  left: 12px;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 13px;
+  color: #97a3a0;
+  pointer-events: none;
+  user-select: none;
+  white-space: nowrap;
+}
+.app { position: relative; }
+/* テスト進捗のつまみはモルモットのアイコン。視覚的には細いバーの上に重なる。 */
+.test-scrubber {
+  position: relative;
+  flex: 0 0 36px;
+  height: 36px;
+  padding: 0 22px;
+  display: flex;
+  align-items: center;
+  cursor: ew-resize;
+  z-index: 5;
+  background: var(--bg);
+  -webkit-user-select: none;
+  user-select: none;
+  touch-action: none;
+}
+.test-scrubber:focus-visible { outline: 2px solid var(--teal); outline-offset: -3px; }
+.test-scrubber[aria-disabled="true"] { cursor: default; }
+.test-scrub-track {
+  position: relative;
+  width: 100%;
+  height: 4px;
+  border-radius: 8px;
+  background: #e0ece7;
+  pointer-events: none;
+}
+.test-scrub-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: var(--teal);
+  pointer-events: none;
+  transition: width .12s linear;
+}
+.test-scrub-thumb {
+  position: absolute;
+  top: 50%;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  transform: translate(-50%, -50%);
+  border: 2px solid white;
+  overflow: hidden;
+  background: white;
+  box-shadow: 0 2px 7px rgba(20, 60, 50, .23);
+  pointer-events: none;
+  transition: left .12s linear;
+}
+.test-scrub-thumb img { display: block; width: 100%; height: 100%; object-fit: cover; pointer-events: none; }
+.test-scrubber:active .test-scrub-fill,
+.test-scrubber:active .test-scrub-thumb { transition: none; }
+/* v7のダブルタップ抑制ルールより優先して、ドラッグとスクロールを競合させない。 */
+@media (pointer: coarse) {
+  .app .test-scrubber, .app .test-scrubber * { touch-action: none; }
+}

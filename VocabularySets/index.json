@@ -155,6 +155,15 @@
       "count": 33
     },
     {
+      "name": "TOPIK2_瞬間作文_296例文.csv",
+      "path": "Flash/TOPIK2_瞬間作文_296例文.csv",
+      "folder": "Flash",
+      "mode": "composition",
+      "columns": 2,
+      "language": "ko",
+      "count": 296
+    },
+    {
       "name": "旅行英会話フレーズ_日本語と訳文.csv",
       "path": "Flash/旅行英会話フレーズ_日本語と訳文.csv",
       "folder": "Flash",

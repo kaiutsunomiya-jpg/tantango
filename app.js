@@ -2,12 +2,14 @@
 
 // GitHub ActionsでVocabularySets内のCSVから自動生成される一覧を読み込みます。
 const CATALOG_URL = './VocabularySets/index.json';
+const APP_VERSION = 'v11:2026/11/25';
 const DB_NAME = 'kotobadeck-local-sets'; // 旧版と同じDB名にし、追加済みCSVを引き継ぐ
 const DECK_STORE = 'vocabulary-sets'; // 古いアプリのDB構造は変更しない（旧データは表示しない）
 const REVIEW_STORE = 'review-flags';
 const DB_VERSION = 2; // 変更しない：旧アプリのIndexedDBをそのまま使う
 
 const app = document.getElementById('app');
+app.dataset.version = APP_VERSION;
 const state = {
   view: 'menu', sets: [], selectedCategory: null, selectedLanguage: null, selectedSetId: null, selectedEntryKey: null,
   shuffled: false, reviewOnly: false, order: [],
@@ -323,8 +325,19 @@ function renderTest() {
   const chinese = currentSet()?.mode === 'chinese';
   const completed = state.testFinished;
   const count = Math.min(state.testIndex+1,entries.length);
+  const progressFraction = entries.length <= 1 ? 0 : state.testIndex / (entries.length - 1);
   app.innerHTML=bar(back('return-list'),'<span class="bar-title">テスト</span>',`<span class="test-counter">${count}/${entries.length}</span>`)+
-    `<div class="test-progress"><div style="width:${100*(completed?1:state.testIndex/entries.length)}%"></div></div>`;
+    `<div class="test-scrubber" role="slider" tabindex="0"
+      aria-label="問題番号を選択" aria-valuemin="1" aria-valuemax="${entries.length}"
+      aria-valuenow="${count}" aria-valuetext="${count}問目 / ${entries.length}問"
+      aria-disabled="${entries.length <= 1}">
+      <div class="test-scrub-track" id="testScrubTrack">
+        <div class="test-scrub-fill" style="width:${progressFraction*100}%"></div>
+        <div class="test-scrub-thumb" style="left:${progressFraction*100}%" aria-hidden="true">
+          <img src="./icons/apple-touch-icon.png" alt="" draggable="false" width="28" height="28">
+        </div>
+      </div>
+    </div>`;
   if (completed) {
     app.insertAdjacentHTML('beforeend',`<main class="done"><div class="done-mark">✓</div><div class="done-title">テスト完了！</div><div class="done-count">${entries.length}${composition?'文':'語'}</div>
      <div class="done-actions"><button type="button" class="main-button" data-action="restart-test">もう一度</button><button type="button" class="light-button" data-action="return-list">一覧に戻る</button></div></main>`);
@@ -346,6 +359,95 @@ function renderTest() {
     ${revealed?starButton(entry,'test-star'):''}
   </main>`);
 }
+// 進捗バーのモルモットをドラッグして問題を移動する。
+// ドラッグ中はバーと番号だけプレビューし、指を離したらその問題を表示する。
+// 新しい問題では解答を隠す（スキップしても不意に答えが出ない）。
+const scrubState = { pointerId: null, previewIndex: null, dragged: false };
+function previewScrub(index) {
+  if (!state.testEntries.length || state.view !== 'test') return;
+  const max = state.testEntries.length - 1;
+  const clamped = Math.max(0, Math.min(max, index));
+  scrubState.previewIndex = clamped;
+  const ratio = max ? clamped / max : 0;
+  const fill = app.querySelector('.test-scrub-fill');
+  const thumb = app.querySelector('.test-scrub-thumb');
+  const label = app.querySelector('.test-counter');
+  const slider = app.querySelector('.test-scrubber');
+  if (fill) fill.style.width = `${ratio * 100}%`;
+  if (thumb) thumb.style.left = `${ratio * 100}%`;
+  if (label) label.textContent = `${clamped + 1}/${state.testEntries.length}`;
+  if (slider) {
+    slider.setAttribute('aria-valuenow', String(clamped + 1));
+    slider.setAttribute('aria-valuetext', `${clamped + 1}問目 / ${state.testEntries.length}問`);
+  }
+}
+function scrubIndexFromPointer(event) {
+  const track = app.querySelector('#testScrubTrack');
+  if (!track) return state.testIndex;
+  const rect = track.getBoundingClientRect();
+  // 横向き端末で縦画面をCSS回転している場合は、水平の目盛りが画面上で縦方向になる。
+  const isRotated = rect.height > rect.width * 1.5;
+  const ratio = isRotated ? (event.clientY - rect.top) / Math.max(1, rect.height) :
+    (event.clientX - rect.left) / Math.max(1, rect.width);
+  return Math.max(0, Math.min(state.testEntries.length - 1,
+    Math.round(ratio * (state.testEntries.length - 1))));
+}
+function seekTest(index) {
+  if (state.view !== 'test' || !state.testEntries.length) return;
+  state.testIndex = Math.max(0, Math.min(state.testEntries.length - 1, index));
+  state.testFinished = false;
+  state.testRevealed = false;
+  scrubState.pointerId = null;
+  scrubState.previewIndex = null;
+  scrubState.dragged = false;
+  renderTest();
+}
+app.addEventListener('pointerdown', event => {
+  const slider = event.target.closest('.test-scrubber');
+  if (!slider || state.view !== 'test' || state.testEntries.length < 2) return;
+  if (event.pointerType === 'mouse' && event.button !== 0) return;
+  event.preventDefault(); event.stopPropagation();
+  scrubState.pointerId = event.pointerId;
+  scrubState.dragged = false;
+  slider.setPointerCapture(event.pointerId);
+  previewScrub(scrubIndexFromPointer(event));
+});
+app.addEventListener('pointermove', event => {
+  if (scrubState.pointerId !== event.pointerId) return;
+  event.preventDefault(); event.stopPropagation();
+  scrubState.dragged = true;
+  previewScrub(scrubIndexFromPointer(event));
+});
+app.addEventListener('pointerup', event => {
+  if (scrubState.pointerId !== event.pointerId) return;
+  event.preventDefault(); event.stopPropagation();
+  const index = scrubIndexFromPointer(event);
+  // pointer captureを開放してから再描画する（Safariでのcapture異常を防ぐ）。
+  const slider = event.target.closest('.test-scrubber') || app.querySelector('.test-scrubber');
+  if (slider?.hasPointerCapture(event.pointerId)) slider.releasePointerCapture(event.pointerId);
+  seekTest(index);
+});
+app.addEventListener('pointercancel', event => {
+  if (scrubState.pointerId !== event.pointerId) return;
+  scrubState.pointerId = null;
+  scrubState.previewIndex = null;
+  if (state.view === 'test') renderTest();
+});
+app.addEventListener('keydown', event => {
+  if (!event.target.closest('.test-scrubber') || state.view !== 'test') return;
+  const max = state.testEntries.length - 1;
+  let index = state.testIndex;
+  if (event.key === 'ArrowRight' || event.key === 'ArrowUp') index++;
+  else if (event.key === 'ArrowLeft' || event.key === 'ArrowDown') index--;
+  else if (event.key === 'Home') index = 0;
+  else if (event.key === 'End') index = max;
+  else return;
+  event.preventDefault(); event.stopPropagation();
+  seekTest(index);
+  // 再描画でスライダー要素が入れ替わるためフォーカスを復帰する。
+  app.querySelector('.test-scrubber')?.focus();
+});
+
 function render(scrollTop=0) {
   if (state.view==='menu') renderMenu();
   if (state.view==='category') renderCategory();
