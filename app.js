@@ -2,7 +2,7 @@
 
 // GitHub ActionsでVocabularySets内のCSVから自動生成される一覧を読み込みます。
 const CATALOG_URL = './VocabularySets/index.json';
-const APP_VERSION = 'v11:2026/11/25';
+const APP_VERSION = 'v12:2026/11/26';
 const DB_NAME = 'kotobadeck-local-sets'; // 旧版と同じDB名にし、追加済みCSVを引き継ぐ
 const DECK_STORE = 'vocabulary-sets'; // 古いアプリのDB構造は変更しない（旧データは表示しない）
 const REVIEW_STORE = 'review-flags';
@@ -11,7 +11,7 @@ const DB_VERSION = 2; // 変更しない：旧アプリのIndexedDBをそのま�
 const app = document.getElementById('app');
 app.dataset.version = APP_VERSION;
 const state = {
-  view: 'menu', sets: [], selectedCategory: null, selectedLanguage: null, selectedSetId: null, selectedEntryKey: null,
+  view: 'menu', sets: [], selectedCollection: 'general', selectedCategory: null, selectedLanguage: null, selectedSetId: null, selectedEntryKey: null,
   shuffled: false, reviewOnly: false, order: [],
   testEntries: [], testIndex: 0, testRevealed: false, testFinished: false,
   starred: new Set(), startupError: ''
@@ -202,8 +202,7 @@ function renderMenu() {
     <h2 class="section-title">学習モード</h2>
     <div class="deck-list category-list">
       ${Object.entries(CATEGORIES).map(([key,category]) => {
-        const decks=state.sets.filter(set => set.folder === key);
-        const total=decks.reduce((sum,set)=>sum+set.entries.length,0);
+        const decks=state.sets.filter(set => set.collection === 'general' && set.folder === key);
         return `<button type="button" class="deck category-deck" data-action="open-category" data-category="${key}">
           <span class="deck-icon">${category.icon}</span>
           <span class="deck-content"><span class="deck-title">${category.title}</span>
@@ -211,6 +210,13 @@ function renderMenu() {
           <span class="deck-next">${svg.next}</span></button>`;
       }).join('')}
     </div>
+    <h2 class="section-title topik-section-title">特設フォルダ</h2>
+    <button type="button" class="deck category-deck topik-deck" data-action="open-topik">
+      <span class="deck-icon">${svg.book}</span>
+      <span class="deck-content"><span class="deck-title">TOPIK用</span>
+        <span class="deck-count" style="display:block">${state.sets.filter(set => set.collection === 'topik').length}セット</span></span>
+      <span class="deck-next">${svg.next}</span>
+    </button>
     ${state.startupError ? `<p class="load-error">${esc(state.startupError)}</p>` : ''}
   </div></main>`;
 }
@@ -220,7 +226,7 @@ const LANGUAGES = {
   zh: {title:'中国語', icon:'中'}
 };
 function languageCard(key, language) {
-  const sets = state.sets.filter(set => set.folder === state.selectedCategory && set.language === key);
+  const sets = state.sets.filter(set => set.collection === 'general' && set.folder === state.selectedCategory && set.language === key);
   return `<button type="button" class="deck language-deck" data-action="open-language" data-language="${key}">
     <span class="language-icon">${language.icon}</span>
     <span class="deck-content"><span class="deck-title">${language.title}</span><span class="deck-count" style="display:block">${sets.length}セット</span></span>
@@ -239,11 +245,37 @@ function renderLanguageSets() {
   const category=CATEGORIES[state.selectedCategory];
   const language=LANGUAGES[state.selectedLanguage];
   if (!category || !language) { state.view='category'; renderCategory(); return; }
-  const decks=state.sets.filter(set => set.folder === state.selectedCategory && set.language === state.selectedLanguage);
+  const decks=state.sets.filter(set => set.collection === 'general' && set.folder === state.selectedCategory && set.language === state.selectedLanguage);
   app.innerHTML = bar(back('go-category','言語'),`<span class="bar-title">${language.title}</span>`,'') +
     `<main class="menu category-page scrollable"><div class="menu-content">
        <h1 class="category-heading">${category.title} ・ ${language.title}</h1>
        <div class="deck-list">${decks.map(card).join('') || '<div class="empty">セットがありません</div>'}</div>
+    </div></main>`;
+}
+// TOPIK用は韓国語の専用フォルダ。言語選択を挟まず、学習方式→CSVの順で表示。
+function renderTopik() {
+  app.innerHTML = bar(back('go-home','ホーム'),'<span class="bar-title">TOPIK用</span>','') +
+    `<main class="menu category-page scrollable"><div class="menu-content">
+      <h1 class="category-heading">TOPIK用</h1>
+      <div class="deck-list category-list">
+        ${Object.entries(CATEGORIES).map(([key,category]) => {
+          const decks=state.sets.filter(set => set.collection === 'topik' && set.folder === key);
+          return `<button type="button" class="deck category-deck" data-action="open-category" data-category="${key}">
+            <span class="deck-icon">${category.icon}</span>
+            <span class="deck-content"><span class="deck-title">${category.title}</span><span class="deck-count" style="display:block">${decks.length}セット</span></span>
+            <span class="deck-next">${svg.next}</span></button>`;
+        }).join('')}
+      </div>
+    </div></main>`;
+}
+function renderTopikSets() {
+  const category = CATEGORIES[state.selectedCategory];
+  if (!category) { state.view='topik'; renderTopik(); return; }
+  const decks=state.sets.filter(set => set.collection === 'topik' && set.folder === state.selectedCategory);
+  app.innerHTML = bar(back('go-topik','TOPIK用'),`<span class="bar-title">${category.title}</span>`,'') +
+    `<main class="menu category-page scrollable"><div class="menu-content">
+      <h1 class="category-heading">TOPIK用 ・ ${category.title}</h1>
+      <div class="deck-list">${decks.map(card).join('') || '<div class="empty">セットがありません</div>'}</div>
     </div></main>`;
 }
 function starButton(entry,extraClass='') {
@@ -252,7 +284,7 @@ function starButton(entry,extraClass='') {
 }
 function renderList(scrollTop = 0) {
   const set = currentSet();
-  if (!set) { state.view = 'category'; renderCategory(); return; }
+  if (!set) { state.view = state.selectedCollection === 'topik' ? 'topik-sets' : 'language'; render(); return; }
   const composition = set.mode === 'composition';
   const chinese = set.mode === 'chinese';
   const entries = orderedEntries();
@@ -450,6 +482,8 @@ app.addEventListener('keydown', event => {
 
 function render(scrollTop=0) {
   if (state.view==='menu') renderMenu();
+  if (state.view==='topik') renderTopik();
+  if (state.view==='topik-sets') renderTopikSets();
   if (state.view==='category') renderCategory();
   if (state.view==='language') renderLanguageSets();
   if (state.view==='list') renderList(scrollTop);
@@ -491,13 +525,21 @@ app.addEventListener('click',async event=>{
   const action=button.dataset.action;
   try {
     switch(action) {
+    case 'open-topik':
+      state.selectedCollection='topik';
+      state.selectedCategory=null; state.selectedLanguage=null;
+      state.view='topik';renderTopik();return;
+    case 'go-topik':
+      state.selectedCollection='topik';state.selectedCategory=null;state.selectedLanguage=null;
+      state.view='topik';renderTopik();return;
     case 'open-category': {
       if (!CATEGORIES[button.dataset.category]) return;
       state.selectedCategory=button.dataset.category;
       state.selectedLanguage=null;
-      state.view='category';renderCategory();return;
+      state.view=state.selectedCollection==='topik' ? 'topik-sets' : 'category';
+      render();return;
     }
-    case 'go-home': state.view='menu';state.selectedCategory=null;state.selectedLanguage=null;renderMenu();return;
+    case 'go-home': state.view='menu';state.selectedCollection='general';state.selectedCategory=null;state.selectedLanguage=null;renderMenu();return;
     case 'go-category': state.view='category';state.selectedEntryKey=null;state.selectedLanguage=null;renderCategory();return;
     case 'open-language': {
       if (!LANGUAGES[button.dataset.language]) return;
@@ -507,6 +549,7 @@ app.addEventListener('click',async event=>{
     case 'open-set': {
       const set=state.sets.find(x=>x.id===button.dataset.id);
       if (!set) return;
+      state.selectedCollection=set.collection;
       state.selectedCategory=set.folder;
       state.selectedLanguage=set.language;
       state.selectedSetId=set.id;
@@ -515,7 +558,7 @@ app.addEventListener('click',async event=>{
       state.shuffled=false; state.reviewOnly=false;
       state.view='list'; render(); return;
     }
-    case 'go-menu': state.view='language';state.selectedEntryKey=null;render();return;
+    case 'go-menu': state.view=state.selectedCollection==='topik'?'topik-sets':'language';state.selectedEntryKey=null;render();return;
     case 'show-example': showEntry(button.dataset.entrykey);return;
     case 'close-panel': showEntry(null);return;
     case 'toggle-shuffle': {
@@ -562,9 +605,12 @@ async function boot() {
     for (const item of catalog.files) {
       if (!item || typeof item !== 'object') continue;
       const path=item.path;
-      // GitHub Actionsで生成された Flash/Vocabulary の直下だけを許可する。
-      if (typeof path !== 'string' || !/^(Flash|Vocabulary)\/[^/\\]+\.csv$/i.test(path)) continue;
-      const [folder,fileName]=path.split('/');
+      // 通常セットとTOPIK専用セットを許可。意図しない深い階層は読み込まない。
+      if (typeof path !== 'string' || !/^(?:(?:Flash|Vocabulary)|TOPIK\/(?:Flash|Vocabulary))\/[^/\\]+\.csv$/i.test(path)) continue;
+      const parts=path.split('/');
+      const collection=parts.length===3?'topik':'general';
+      const folder=parts[parts.length-2];
+      const fileName=parts[parts.length-1];
       if (!CATEGORIES[folder]) continue;
       try {
         const encodedPath=path.split('/').map(encodeURIComponent).join('/');
@@ -573,7 +619,7 @@ async function boot() {
         const parsed=parseCSV(await response.text());
         // カラム名のゆれや4列の旧単語CSVにも対応し、CSVの実データ列数で判定。
         const language = ['en','ko','zh'].includes(item.language) ? item.language : (parsed.mode==='chinese' ? 'zh' : 'en');
-        bundled.push({id:`bundled:${path}`,legacyId:`bundled:${fileName}`,folder,
+        bundled.push({id:`bundled:${path}`,legacyId:`bundled:${fileName}`,folder,collection,
           kind:'bundled',fileName,path,title:basename(fileName),language,mode:parsed.mode,columns:parsed.columns,entries:parsed.entries});
       } catch(error) {state.startupError+=`${fileName}：${error.message} `;}
     }
@@ -586,7 +632,9 @@ async function boot() {
     for (const set of bundled) {
       const priorIds = [set.legacyId];
       // 同一内容のTOPIK100語CSVの旧ファイル名（v9まで）からも⭐を移行する。
-      if (set.path === 'Vocabulary/第47回TOPIKⅡ_上級韓国語100単語.csv') {
+      if (set.path === 'TOPIK/Vocabulary/第47回TOPIKⅡ_上級韓国語100単語.csv') {
+        // 旧「単語学習→韓国語」のCSVから移動。⭐は旧データを削除しつつ新IDへ移す。
+        priorIds.push('bundled:Vocabulary/第47回TOPIKⅡ_上級韓国語100単語.csv');
         priorIds.push('bundled:Vocabulary/第47回TOPIKⅡ_上級韓国語100単語(1).csv');
         priorIds.push('bundled:第47回TOPIKⅡ_上級韓国語100単語(1).csv');
       }

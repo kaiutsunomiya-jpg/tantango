@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build たんたんご！ for GitHub Pages from all CSVs in Flash/Vocabulary.
+"""Build たんたんご！ for GitHub Pages from regular and TOPIK CSV folders.
 
 Column meanings are positional. Header wording never determines parsing.
 2 columns: Japanese / response (or generic prompt / response)
@@ -18,7 +18,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 DEST = ROOT / "dist"
 SETS = ROOT / "VocabularySets"
-DIRECTORIES = ("Vocabulary", "Flash")
+DIRECTORIES = ("Vocabulary", "Flash", "TOPIK/Vocabulary", "TOPIK/Flash")
 VALID_WIDTHS = {2, 3, 4, 5}
 
 
@@ -43,6 +43,8 @@ def infer_language(name: str, columns: int, rows: list[list[str]]) -> str:
 
 
 def check_csv(path: Path, folder: str) -> dict:
+    mode_folder = folder.split("/")[-1]
+    collection = "topik" if folder.startswith("TOPIK/") else "general"
     try:
         with path.open("r", encoding="utf-8-sig", newline="") as handle:
             rows = [row for row in csv.reader(handle, strict=True) if any(cell.strip() for cell in row)]
@@ -56,9 +58,9 @@ def check_csv(path: Path, folder: str) -> dict:
     columns = max(set(lengths), key=lambda width: (lengths.count(width), width))
     if columns not in VALID_WIDTHS:
         raise ValueError(f"{path}: {columns}列のCSVは非対応です（2/3/4/5列対応）")
-    if folder == "Flash" and columns not in (2, 3):
+    if mode_folder == "Flash" and columns not in (2, 3):
         raise ValueError(f"{path}: Flashには2列または3列のCSVを格納してください")
-    if folder == "Vocabulary" and columns not in (3, 4, 5):
+    if mode_folder == "Vocabulary" and columns not in (3, 4, 5):
         raise ValueError(f"{path}: Vocabularyには3・4・5列のCSVを格納してください")
     for number, row in enumerate(rows[1:], start=2):
         if len(row) != columns and not (columns == 5 and len(row) == 4):
@@ -71,7 +73,8 @@ def check_csv(path: Path, folder: str) -> dict:
     return {
         "name": path.name,
         "path": f"{folder}/{path.name}",
-        "folder": folder,
+        "folder": mode_folder,
+        "collection": collection,
         "mode": mode,
         "columns": columns,
         "language": language,
@@ -96,7 +99,7 @@ def build() -> None:
     dest_sets.mkdir()
     for folder in DIRECTORIES:
         shutil.copytree(SETS / folder, dest_sets / folder)
-    (dest_sets / "index.json").write_text(json.dumps({"version": 3, "files": items}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    (dest_sets / "index.json").write_text(json.dumps({"version": 4, "files": items}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"OK: {len(items)} セット / {sum(item['count'] for item in items)} 項目")
     for item in items:
         print(f"  [{item['folder']}/{item['language']}/{item['mode']}] {item['name']}: {item['count']}")

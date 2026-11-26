@@ -350,3 +350,8 @@ button:focus-visible { outline: 3px solid #67a8a2; outline-offset: 2px; }
 @media (pointer: coarse) {
   .app .test-scrubber, .app .test-scrubber * { touch-action: none; }
 }
+
+/* TOPIK専用フォルダ。通常メニューとは見た目を区別し、機能は共通。 */
+.topik-section-title { margin-top: 28px; }
+.topik-deck { border-color: #c7dfd6; background: #f0f8f4; }
+.topik-deck .deck-icon { background: #ddf0e5; }
